@@ -1,0 +1,35 @@
+﻿# Project configuration
+seed: 42
+
+paths:
+  raw: data/raw
+  processed: data/processed
+  splits: data/splits
+  results: results
+
+audio:
+  sample_rate: 22050
+  n_mels: 128
+  n_chroma: 12
+  segment_seconds: 8
+
+graph:
+  similarity_threshold: 0.7
+  add_temporal_edges: true
+
+bert:
+  model_name: distilbert-base-uncased
+  max_length: 128
+  freeze_encoder: true
+
+gnn:
+  conv_type: sage
+  hidden_dim: 128
+  num_layers: 2
+  dropout: 0.3
+
+train:
+  batch_size: 32
+  epochs: 20
+  learning_rate: 0.0002
+  weight_decay: 0.00001
