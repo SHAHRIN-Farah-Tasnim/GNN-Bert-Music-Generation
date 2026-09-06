@@ -33,9 +33,19 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 try:
-    from src.audio_features import AudioFeatureExtractor, generate_synthetic_audio
+    from src.audio_features import (
+        CHORD_NAMES,
+        CHORD_TEMPLATES,
+        AudioFeatureExtractor,
+        generate_synthetic_audio,
+    )
 except ModuleNotFoundError:
-    from audio_features import AudioFeatureExtractor, generate_synthetic_audio
+    from audio_features import (
+        CHORD_NAMES,
+        CHORD_TEMPLATES,
+        AudioFeatureExtractor,
+        generate_synthetic_audio,
+    )
 
 # ---------------------------------------------------------------------------
 # Logging & Seed Utilities (AGENTS.md Compliance)
@@ -147,6 +157,69 @@ def build_segment_graph(
                 edge_targets.append(i)
                 edge_weights.append(1.0)
                 edge_set.add((i, i))
+
+    edge_index = torch.tensor([edge_sources, edge_targets], dtype=torch.long)
+    edge_attr = torch.tensor(edge_weights, dtype=torch.float32).unsqueeze(1)
+
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+    if labels is not None:
+        data.y = torch.tensor(labels, dtype=torch.float32).unsqueeze(0)
+    if track_id is not None:
+        data.track_id = track_id
+
+    return data
+
+
+def build_chord_transition_graph(
+    transition_matrix: np.ndarray,
+    chord_templates: Optional[np.ndarray] = None,
+    labels: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    track_id: Optional[str] = None,
+    normalize_weights: bool = True,
+) -> Data:
+    """
+    Construct a Chord-Transition Graph per Spec §3.3:
+        Nodes = 24 unique chords (12 Major, 12 Minor) with 12-dim chroma template features.
+        Edges = Observed harmonic transitions weighted by transition count.
+
+    Args:
+        transition_matrix: Observed transition frequency matrix of shape (24, 24).
+        chord_templates: 12-dim pitch-class profiles of shape (24, 12).
+        labels: Multi-hot target vector y.
+        track_id: Optional track identifier.
+        normalize_weights: Whether to normalize transition counts by row sum.
+
+    Returns:
+        PyG Data object representing the chord transition graph.
+    """
+    templates = chord_templates if chord_templates is not None else CHORD_TEMPLATES
+    x = torch.tensor(templates, dtype=torch.float32)
+
+    edge_sources: List[int] = []
+    edge_targets: List[int] = []
+    edge_weights: List[float] = []
+
+    # Row-normalize transition weights if requested
+    matrix = transition_matrix.copy()
+    if normalize_weights:
+        row_sums = matrix.sum(axis=1, keepdims=True) + 1e-8
+        matrix = matrix / row_sums
+
+    for i in range(24):
+        has_outgoing = False
+        for j in range(24):
+            val = float(matrix[i, j])
+            if val > 0.0:
+                edge_sources.append(i)
+                edge_targets.append(j)
+                edge_weights.append(val)
+                has_outgoing = True
+
+        # Ensure message passing connectivity with self-loop if no outgoing transition
+        if not has_outgoing:
+            edge_sources.append(i)
+            edge_targets.append(i)
+            edge_weights.append(1.0)
 
     edge_index = torch.tensor([edge_sources, edge_targets], dtype=torch.long)
     edge_attr = torch.tensor(edge_weights, dtype=torch.float32).unsqueeze(1)
@@ -293,4 +366,17 @@ if __name__ == "__main__":
     assert batch.x.ndim == 2, "Node feature tensor must be 2D"
     assert batch.edge_index.shape[0] == 2, "Edge index must have 2 rows (source, target)"
     assert batch.y.shape == (2, 50), f"Expected batched targets shape (2, 50), got {tuple(batch.y.shape)}"
+
+    logger.info("Testing build_chord_transition_graph (§3.3)...")
+    synthetic_trans = np.zeros((24, 24), dtype=np.float32)
+    # Simulate a classic I-IV-V-I progression (C:maj -> F:maj -> G:maj -> C:maj)
+    synthetic_trans[0, 5] = 4.0   # C -> F
+    synthetic_trans[5, 7] = 3.0   # F -> G
+    synthetic_trans[7, 0] = 5.0   # G -> C
+    chord_graph = build_chord_transition_graph(synthetic_trans)
+    logger.info("Chord graph: %d nodes, %d edges, feature shape %s", chord_graph.num_nodes, chord_graph.num_edges, tuple(chord_graph.x.shape))
+    assert chord_graph.num_nodes == 24
+    assert chord_graph.x.shape == (24, 12)
+    assert chord_graph.num_edges >= 3
+
     logger.info("Graph builder sanity check PASSED successfully.")

@@ -11,7 +11,8 @@ audio:
   sample_rate: 22050
   n_mels: 128
   n_chroma: 12
-  segment_seconds: 8
+  segment_seconds: 5
+  hop_seconds: 2.5
 
 graph:
   similarity_threshold: 0.7
