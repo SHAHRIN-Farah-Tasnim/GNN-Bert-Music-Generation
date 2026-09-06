@@ -6,10 +6,13 @@ regression, and cross-modal caption retrieval.
 
 ## Setup
 
+    py -3.11 -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install -r requirements.txt
 
 ## Dataset
 
-TODO — download instructions once dataset is chosen.
+TODO - download instructions once dataset is chosen.
 
 ## Results
 
