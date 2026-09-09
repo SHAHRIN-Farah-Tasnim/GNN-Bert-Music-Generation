@@ -154,7 +154,7 @@ def train_gnn_tag(config: Dict[str, Any], epochs: int = 1, batch_size: int = 2) 
     val_dataset = MusicGraphDataset(split="val", config_path="config.yaml", num_samples=2)
     val_loader = create_graph_dataloader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    model = MusicGNNClassifier.from_config("config.yaml", in_channels=320, num_labels=50).to(device)
+    model = MusicGNNClassifier.from_config("config.yaml", in_channels=320, num_labels=10).to(device)
 
     train_cfg = config.get("train", {})
     optimizer = AdamW(model.parameters(), lr=train_cfg.get("learning_rate", 2e-4), weight_decay=train_cfg.get("weight_decay", 1e-5))
@@ -189,6 +189,66 @@ def train_gnn_tag(config: Dict[str, Any], epochs: int = 1, batch_size: int = 2) 
     metrics = compute_tag_classification_metrics(y_true, y_pred)
     logger.info("Task 2 Validation Results: Macro-F1: %.4f | Micro-F1: %.4f | AUC-PR: %.4f",
                 metrics["macro_f1"], metrics["micro_f1"], metrics["mean_auc_pr"])
+
+    # Persist metrics and weights so results survive the session and the demo
+    # notebook has a checkpoint to load. Every recorded number here comes from
+    # this run; nothing is filled in by hand.
+    import json as _json, os as _os, time as _time
+    gnn_cfg = config.get("gnn", {})
+    audio_cfg = config.get("audio", {})
+    graph_cfg = config.get("graph", {})
+    run_tag = gnn_cfg.get("conv_type", "sage") + "_seed" + str(config.get("seed", 42))
+
+    results_dir = config.get("paths", {}).get("results", "results")
+    _os.makedirs(results_dir, exist_ok=True)
+    _os.makedirs(_os.path.join(results_dir, "checkpoints"), exist_ok=True)
+
+    record = {
+        "task": "task2_gnn_tag",
+        "timestamp": _time.strftime("%Y-%m-%d %H:%M:%S"),
+        "split_evaluated": "val",
+        "metrics": {k: float(v) for k, v in metrics.items()
+                    if isinstance(v, (int, float))},
+        "final_train_loss": float(avg_loss),
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "seed": config.get("seed", 42),
+        "learning_rate": train_cfg.get("learning_rate", 2e-4),
+        "weight_decay": train_cfg.get("weight_decay", 1e-5),
+        "gnn": {"conv_type": gnn_cfg.get("conv_type"),
+                "hidden_dim": gnn_cfg.get("hidden_dim"),
+                "num_layers": gnn_cfg.get("num_layers"),
+                "dropout": gnn_cfg.get("dropout")},
+        "audio": {"segment_seconds": audio_cfg.get("segment_seconds"),
+                  "hop_seconds": audio_cfg.get("hop_seconds")},
+        "graph": {"similarity_threshold": graph_cfg.get("similarity_threshold"),
+                  "add_temporal_edges": graph_cfg.get("add_temporal_edges")},
+        "num_train_graphs": len(train_dataset),
+        "num_val_graphs": len(val_dataset),
+    }
+
+    run_path = _os.path.join(results_dir, "metrics_task2_" + run_tag + ".json")
+    with open(run_path, "w") as _f:
+        _json.dump(record, _f, indent=2)
+    logger.info("Saved metrics -> %s", run_path)
+
+    ckpt_path = _os.path.join(results_dir, "checkpoints", "task2_gnn_" + run_tag + ".pt")
+    torch.save(model.state_dict(), ckpt_path)
+    logger.info("Saved checkpoint -> %s", ckpt_path)
+
+    # Append to the aggregate table used for the README results section
+    agg_path = _os.path.join(results_dir, "metrics.json")
+    agg = {}
+    if _os.path.exists(agg_path):
+        try:
+            agg = _json.load(open(agg_path))
+        except Exception:
+            agg = {}
+    agg.setdefault("task2_gnn_tag", {})[run_tag] = record
+    with open(agg_path, "w") as _f:
+        _json.dump(agg, _f, indent=2)
+    logger.info("Updated aggregate metrics -> %s", agg_path)
+
     return metrics
 
 

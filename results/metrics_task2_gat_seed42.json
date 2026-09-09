@@ -1,0 +1,32 @@
+{
+  "task": "task2_gnn_tag",
+  "timestamp": "2026-09-09 07:10:56",
+  "split_evaluated": "val",
+  "metrics": {
+    "macro_f1": 0.32374025949877344,
+    "micro_f1": 0.4333333333333333,
+    "mean_auc_pr": 0.5547333120273217
+  },
+  "final_train_loss": 0.2643935670171465,
+  "epochs": 30,
+  "batch_size": 2,
+  "seed": 42,
+  "learning_rate": 0.0002,
+  "weight_decay": 1e-05,
+  "gnn": {
+    "conv_type": "gat",
+    "hidden_dim": 128,
+    "num_layers": 2,
+    "dropout": 0.3
+  },
+  "audio": {
+    "segment_seconds": 5,
+    "hop_seconds": 2.5
+  },
+  "graph": {
+    "similarity_threshold": 0.7,
+    "add_temporal_edges": true
+  },
+  "num_train_graphs": 699,
+  "num_val_graphs": 150
+}
