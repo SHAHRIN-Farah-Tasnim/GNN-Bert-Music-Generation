@@ -1,0 +1,33 @@
+{
+  "track_id": "sample_track_01",
+  "duration_seconds": 16.0,
+  "num_nodes": 2,
+  "num_edges": 4,
+  "feature_dim": 320,
+  "edge_sources": [
+    0,
+    1,
+    0,
+    1
+  ],
+  "edge_targets": [
+    1,
+    0,
+    0,
+    1
+  ],
+  "edge_weights": [
+    0.9999403953552246,
+    0.9999403953552246,
+    1.0,
+    1.0
+  ],
+  "active_labels": [
+    1,
+    7,
+    11,
+    33,
+    34,
+    43
+  ]
+}
